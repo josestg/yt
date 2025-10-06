@@ -1,11 +1,16 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"math/rand/v2"
 	"net/http"
 	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 	"time"
 )
 
@@ -24,17 +29,45 @@ func main() {
 
 func run() error {
 	log := newLogger()
-	log.Info("app started")
+	log.Info("app started", "pid", os.Getpid())
 	defer log.Info("app stopped")
 
 	mux := http.NewServeMux()
 	mux.Handle("POST /api/v1/orders", orderHandler())
 
-	log.Info("server is listening", "addr", addr)
-	err := http.ListenAndServe(addr, handlerWithLogContext(mux, log))
-	if err != nil {
-		return fmt.Errorf("listen and serve: %w", err)
+	srv := http.Server{
+		Addr:    addr,
+		Handler: handlerWithLogContext(mux, log),
 	}
+
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		log.Info("server is listening", "addr", srv.Addr)
+		err := srv.ListenAndServe()
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Warn("unexpected error from listen and serve", "error", err.Error())
+		}
+	})
+
+	shutdownRequest := make(chan os.Signal, 1)
+	signal.Notify(shutdownRequest, syscall.SIGTERM)
+	wg.Go(func() {
+		sig := <-shutdownRequest
+		log.Info("shutdown request received", "signal", sig.String())
+
+		err := srv.Shutdown(context.TODO())
+		if err != nil {
+			log.Warn("shutdown failed, continue with force shutdown", "error", err.Error())
+			err = srv.Close()
+			if err != nil {
+				log.Error("force shutdown also failed", "error", err.Error())
+			}
+			return
+		}
+		log.Info("server shutdown gracefully")
+	})
+
+	wg.Wait()
 	return nil
 }
 
