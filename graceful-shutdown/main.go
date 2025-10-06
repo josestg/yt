@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"math/rand/v2"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -39,7 +40,10 @@ func run() error {
 
 	srv := http.Server{
 		Addr:    addr,
-		Handler: handlerWithLogContext(mux, log),
+		Handler: mux,
+		BaseContext: func(listener net.Listener) context.Context {
+			return context.WithValue(context.Background(), logContextKey{}, log)
+		},
 	}
 
 	var wg sync.WaitGroup

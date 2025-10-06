@@ -29,13 +29,6 @@ func readJSONBody(w http.ResponseWriter, r *http.Request, dest any) bool {
 
 type logContextKey struct{}
 
-func handlerWithLogContext(next http.Handler, log *slog.Logger) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := context.WithValue(r.Context(), logContextKey{}, log)
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
-}
-
 func LogFromContext(ctx context.Context) *slog.Logger {
 	log, ok := ctx.Value(logContextKey{}).(*slog.Logger)
 	if !ok {
