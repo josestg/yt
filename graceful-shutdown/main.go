@@ -16,10 +16,12 @@ import (
 
 var addr = "localhost:8080"
 var delay = 30 * time.Second
+var gracePeriod = 15 * time.Second
 
 func main() {
 	flag.StringVar(&addr, "addr", addr, "http server address")
 	flag.DurationVar(&delay, "delay", delay, "delay simulation")
+	flag.DurationVar(&gracePeriod, "grace-period", delay, "wait timeout before executing force shutdown")
 	flag.Parse()
 	if err := run(); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "exit: %s\n", err.Error())
@@ -55,7 +57,10 @@ func run() error {
 		sig := <-shutdownRequest
 		log.Info("shutdown request received", "signal", sig.String())
 
-		err := srv.Shutdown(context.TODO())
+		ctx, cancel := context.WithTimeout(context.Background(), gracePeriod)
+		defer cancel()
+
+		err := srv.Shutdown(ctx)
 		if err != nil {
 			log.Warn("shutdown failed, continue with force shutdown", "error", err.Error())
 			err = srv.Close()
