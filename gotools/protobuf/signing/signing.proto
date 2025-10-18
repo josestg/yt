@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+// buf:lint:ignore PACKAGE_VERSION_SUFFIX
+package protobuf.signing;
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+import "buf/validate/validate.proto";
+
+option go_package = "github.com/josestg/yt/gotools/signing;signingpb";
+
+message SignRequest {
+  int64 id = 1 [
+    (buf.validate.field).required = true
+  ];
+  string certificate_id = 2 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).string.min_len = 4,
+    (buf.validate.field).string.max_len = 32
+  ];
+}
+
+message SignResponse {
+  int64 signature_id = 1;
+  google.protobuf.Timestamp signed_at = 2;
+}
+
+service SigningService {
+  rpc Sign(SignRequest) returns (SignResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/documents/sign"
+      body: "*"
+    };
+  }
+}
